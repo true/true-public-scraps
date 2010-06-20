@@ -755,6 +755,7 @@ main () {
    # Disks, RAID, Filesystems
    # ########################################################################
    # TODO: Add info about software RAID
+<<<<<<< HEAD
    section "Disk_Partioning"
    echo -n '' > /tmp/aspersa
    for diskpath in $(ls -al /dev/disk/by-id |grep -v '\-part' |grep '/' |sed 's#\.\.\/##g' |awk '{print "/dev/"$NF}' | sort | uniq); do
@@ -770,6 +771,12 @@ main () {
        mount | sort | join /tmp/aspersa2 - > /tmp/aspersa
        parse_filesystems
    fi
+=======
+   section "Mounted_Filesystems"
+   df -hP | sort > /tmp/aspersa2
+   mount | sort | join /tmp/aspersa2 - > /tmp/aspersa
+   parse_filesystems
+>>>>>>> cf895b3... A number of small and large changes.
 
    section "Disk_Schedulers_And_Queue_Size"
 
@@ -847,7 +854,11 @@ main () {
    fi
 
    if [ "${notfound}" ]; then
+<<<<<<< HEAD
       echo "   RAID controller software not found; try getting it from"
+=======
+      echo "   Raid controller not found; try getting it from"
+>>>>>>> cf895b3... A number of small and large changes.
       echo "   ${notfound}"
    fi
 
@@ -877,6 +888,7 @@ main () {
    fi
    name_val Technology "${virt:-No virtualization detected}"
 
+<<<<<<< HEAD
    if [[ "${ASPERSA_SKIP}" != *NETWORK* ]]; then
        # ########################################################################
        # Network stuff
@@ -903,6 +915,27 @@ main () {
        if netstat -antp > /tmp/aspersa 2>/dev/null; then
           parse_netstat
        fi
+=======
+   # ########################################################################
+   # Network stuff
+   # ########################################################################
+   section Network_Config
+   if lspci > /tmp/aspersa 2>/dev/null; then
+      parse_ethernet_controller_lspci
+   fi
+   if sysctl net.ipv4.tcp_fin_timeout > /dev/null 2>&1; then
+      name_val "FIN Timeout" "$(sysctl net.ipv4.tcp_fin_timeout)"
+      name_val "Port Range" "$(sysctl net.ipv4.ip_local_port_range)"
+   fi
+
+   # TODO cat /proc/sys/net/ipv4/ip_conntrack_max ; it might be
+   # /proc/sys/net/netfilter/nf_conntrack_max or /proc/sys/net/nf_conntrack_max
+   # in new kernels like Fedora 12?
+
+   section Interface_Statistics
+   if ip -s link > /tmp/aspersa 2>/dev/null; then
+      parse_ip_s_link
+>>>>>>> cf895b3... A number of small and large changes.
    fi
 
    if [[ "${ASPERSA_SKIP}" != *PROCESS* ]]; then

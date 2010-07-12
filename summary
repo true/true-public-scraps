@@ -1,5 +1,7 @@
 #!/bin/bash
 # This program is part of Aspersa (http://code.google.com/p/aspersa/)
+# Slightly modified by True (http://github.com/true/true-public-scraps/raw/master/summary)
+set +x
 
 # ########################################################################
 # A script to summarize system information in a nice way.
@@ -671,6 +673,8 @@ main () {
       release=$(cat /etc/redhat-release);
    elif [ -e /etc/system-release ]; then
       release=$(cat /etc/system-release);
+   elif [ -e /etc/lsb-release ]; then
+      release=$(grep DISTRIB_DESCRIPTION /etc/lsb-release |awk -F'=' '{print $2}' |sed 's#"##g');
    elif [ -e /etc/debian_version ]; then
       release="Debian-based; version $(cat /etc/debian_version)";
    elif ls /etc/*release 2>/dev/null; then
@@ -699,8 +703,13 @@ main () {
       name_val "Compiled by" "$(/lib/libc.so.6 | grep 'Compiled by' | cut -c13-)"
    fi
 
-   getenforce="$(getenforce 2>&1)";
-   name_val "SELinux" "${getenforce:-Does not exist}";
+   if which getenforce >/dev/null 2>&1 && test -x "$(which getenforce)"; then
+      getenforce="$(getenforce 2>&1)";
+   else
+      getenforce="Cannot execute 'getenforce'";
+   fi
+
+   name_val "SELinux" "${getenforce}";
 
    # ########################################################################
    # Processor/CPU, Memory, Swappiness, dmidecode

@@ -654,7 +654,7 @@ main () {
    # ########################################################################
    # General date, time, load, etc
    # ########################################################################
-   name_val "Current date" "`date -u +'%F %T UTC'` (local TZ: `date +'%Z %z'`)"
+   name_val "Date" "`date -u +'%F %T UTC'` (local TZ: `date +'%Z %z'`)"
    name_val "Hostname" `uname -n`
    name_val "Uptime" "`uptime | cut -dp -f2 | cut -c2-`"
    vendor="$(dmidecode -s system-manufacturer 2>/dev/null | sed 's/ *$//g')"

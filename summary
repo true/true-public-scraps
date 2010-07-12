@@ -125,7 +125,7 @@ parse_proc_cpuinfo () {
    cores=$((${cores} * ${physical}));
    if [ ${cores} -gt 0 -a $cores -lt $virtual ]; then htt=has; else htt=no; fi
 
-   name_val "Processors" "${physical} physical, ${cores} cores, ${virtual} virtual, ${htt} hyperthreading"
+   name_val "Processors" "physical = ${physical}, cores = ${cores}, virtual = ${virtual}, hyperthreading = ${htt}"
 
    awk -F: '/cpu MHz/{print $2}' /tmp/aspersa \
       | sort | uniq -c > /tmp/aspersa2
@@ -158,7 +158,7 @@ parse_free_minus_b () {
    shorten ${physical} physical
    shorten ${swap} swap
    shorten ${virtual} virtual
-   name_val Used "${physical} physical + ${swap} swap = ${virtual} virtual"
+   name_val Used "physical = ${physical}, swap = ${swap}, virtual = ${virtual}"
 
    buffers=$(awk '/Mem/{print $6}' /tmp/aspersa);
    shorten ${buffers} buffers
@@ -697,7 +697,7 @@ main () {
    if file -L /bin/sh | grep -q '64-bit'; then
       OS_ARCH='64-bit'
    fi
-   name_val "Architecture" "$CPU_ARCH CPU, $OS_ARCH OS"
+   name_val "Architecture" "CPU = $CPU_ARCH, OS = $OS_ARCH"
 
    # Threading library
    name_val Threading "$(getconf GNU_LIBPTHREAD_VERSION)"

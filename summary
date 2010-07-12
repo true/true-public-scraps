@@ -664,6 +664,8 @@ main () {
       chassis="$(dmidecode -s chassis-type 2>/dev/null | sed 's/ *$//g')"
       system="${vendor} ${product} v${version} (${chassis})"
       name_val "System" "${system}";
+      servicetag="$(dmidecode -s system-serial-number 2>/dev/null | sed 's/ *$//g')"
+      name_val "Service Tag" "${servicetag:-Not found}";
    fi
 
    # Try to find all sorts of different files that say what the release is.

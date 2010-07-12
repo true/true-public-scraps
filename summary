@@ -706,7 +706,7 @@ main () {
    if which getenforce >/dev/null 2>&1 && test -x "$(which getenforce)"; then
       getenforce="$(getenforce 2>&1)";
    else
-      getenforce="Cannot execute 'getenforce'";
+      getenforce="No SELinux detected";
    fi
 
    name_val "SELinux" "${getenforce}";

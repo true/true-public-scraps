@@ -647,7 +647,7 @@ main () {
    export PATH="${PATH}:/usr/StorMan/:/opt/MegaRAID/MegaCli/";
 
    # Set up temporary files.
-   temp_files "check"
+   temp_files "rm"
    temp_files "touch"
    section Aspersa_System_Summary_Report
 
@@ -702,7 +702,7 @@ main () {
    # Threading library
    name_val Threading "$(getconf GNU_LIBPTHREAD_VERSION)"
    if [ -f /lib/libc.so.6 ]; then
-      name_val "Compiled by" "$(/lib/libc.so.6 | grep 'Compiled by' | cut -c13-)"
+      name_val "Compiler" "$(/lib/libc.so.6 | grep 'Compiled by' | cut -c13-)"
    fi
 
    if which getenforce >/dev/null 2>&1 && test -x "$(which getenforce)"; then
@@ -726,7 +726,7 @@ main () {
 
    rss=$(ps -eo rss | awk '/[0-9]/{total += $1 * 1024} END {print total}')
    shorten ${rss} rss
-   name_val Used "${rss} used according to 'ps -eo rss'"
+   name_val Used "${rss}" #  used according to 'ps -eo rss'
 
    name_val Swappiness "$(sysctl vm.swappiness 2>&1)"
    name_val DirtyPolicy "$(sysctl vm.dirty_ratio 2>&1) $(sysctl vm.dirty_background_ratio 2>&1)"

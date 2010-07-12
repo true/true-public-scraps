@@ -742,10 +742,12 @@ main () {
    # Disks, RAID, Filesystems
    # ########################################################################
    # TODO: Add info about software RAID
-   section "Mounted_Filesystems"
-   df -hP | sort > /tmp/aspersa2
-   mount | sort | join /tmp/aspersa2 - > /tmp/aspersa
-   parse_filesystems
+   if [ 0 = 1 ]; then
+       section "Mounted_Filesystems"
+       df -hP | sort > /tmp/aspersa2
+       mount | sort | join /tmp/aspersa2 - > /tmp/aspersa
+       parse_filesystems
+   fi
 
    section "Disk_Schedulers_And_Queue_Size"
 
@@ -853,40 +855,43 @@ main () {
    fi
    name_val Technology "${virt:-No virtualization detected}"
 
-   # ########################################################################
-   # Network stuff
-   # ########################################################################
-   section Network_Config
-   if lspci > /tmp/aspersa 2>/dev/null; then
-      parse_ethernet_controller_lspci
-   fi
-   if sysctl net.ipv4.tcp_fin_timeout > /dev/null 2>&1; then
-      name_val "FIN Timeout" "$(sysctl net.ipv4.tcp_fin_timeout)"
-      name_val "Port Range" "$(sysctl net.ipv4.ip_local_port_range)"
+   if [ 0 = 1 ]; then
+       # ########################################################################
+       # Network stuff
+       # ########################################################################
+       section Network_Config
+       if lspci > /tmp/aspersa 2>/dev/null; then
+          parse_ethernet_controller_lspci
+       fi
+       if sysctl net.ipv4.tcp_fin_timeout > /dev/null 2>&1; then
+          name_val "FIN Timeout" "$(sysctl net.ipv4.tcp_fin_timeout)"
+          name_val "Port Range" "$(sysctl net.ipv4.ip_local_port_range)"
+       fi
+
+       # TODO cat /proc/sys/net/ipv4/ip_conntrack_max ; it might be
+       # /proc/sys/net/netfilter/nf_conntrack_max or /proc/sys/net/nf_conntrack_max
+       # in new kernels like Fedora 12?
+
+       section Interface_Statistics
+       if ip -s link > /tmp/aspersa 2>/dev/null; then
+          parse_ip_s_link
+       fi
+
+       section Network_Connections
+       if netstat -antp > /tmp/aspersa 2>/dev/null; then
+          parse_netstat
+       fi
+
+       # ########################################################################
+       # Processes, load, etc
+       # ########################################################################
+       section Top_Processes
+       top -bn 1 | sed -e 's# *$##g' -e '/./{H;$!d;}' -e 'x;/PID/!d;' | grep . | head
+       section "Simplified_vmstat_(wait_please)"
+       vmstat 1 5 > /tmp/aspersa
+       format_vmstat
    fi
 
-   # TODO cat /proc/sys/net/ipv4/ip_conntrack_max ; it might be
-   # /proc/sys/net/netfilter/nf_conntrack_max or /proc/sys/net/nf_conntrack_max
-   # in new kernels like Fedora 12?
-
-   section Interface_Statistics
-   if ip -s link > /tmp/aspersa 2>/dev/null; then
-      parse_ip_s_link
-   fi
-
-   section Network_Connections
-   if netstat -antp > /tmp/aspersa 2>/dev/null; then
-      parse_netstat
-   fi
-
-   # ########################################################################
-   # Processes, load, etc
-   # ########################################################################
-   section Top_Processes
-   top -bn 1 | sed -e 's# *$##g' -e '/./{H;$!d;}' -e 'x;/PID/!d;' | grep . | head
-   section "Simplified_vmstat_(wait_please)"
-   vmstat 1 5 > /tmp/aspersa
-   format_vmstat
 
    # ########################################################################
    # All done.  Signal the end so it's explicit.

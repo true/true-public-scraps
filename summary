@@ -729,9 +729,9 @@ main () {
    name_val Used "${rss}" #  used according to 'ps -eo rss'
 
    name_val Swappiness "$(sysctl vm.swappiness 2>&1)"
-   name_val DirtyPolicy "$(sysctl vm.dirty_ratio 2>&1) $(sysctl vm.dirty_background_ratio 2>&1)"
+   name_val DirtyPolicy "$(sysctl vm.dirty_ratio 2>&1), $(sysctl vm.dirty_background_ratio 2>&1)"
    if sysctl vm.dirty_bytes > /dev/null 2>&1; then
-      name_val DirtyStatus "$(sysctl vm.dirty_bytes 2>&1) $(sysctl vm.dirty_background_bytes 2>&1)"
+      name_val DirtyStatus "$(sysctl vm.dirty_bytes 2>&1), $(sysctl vm.dirty_background_bytes 2>&1)"
    fi
 
    if dmidecode > /tmp/aspersa 2>/dev/null; then

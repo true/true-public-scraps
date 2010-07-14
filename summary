@@ -662,7 +662,7 @@ main () {
       product="$(dmidecode -s system-product-name 2>/dev/null | sed 's/ *$//g')"
       version="$(dmidecode -s system-version 2>/dev/null | sed 's/ *$//g')"
       chassis="$(dmidecode -s chassis-type 2>/dev/null | sed 's/ *$//g')"
-      system="${vendor} ${product} v${version} (${chassis})"
+      system="${vendor}; ${product}; v${version} (${chassis})"
       name_val "System" "${system}";
       servicetag="$(dmidecode -s system-serial-number 2>/dev/null | sed 's/ *$//g')"
       name_val "Service Tag" "${servicetag:-Not found}";

@@ -677,6 +677,7 @@ main () {
       release=$(cat /etc/system-release);
    elif which lsb_release >/dev/null 2>&1 && test -x "$(which lsb_release)"; then
       release=$(lsb_release -ds);
+      release="${release} ($(lsb_release -cs))"
    elif [ -e /etc/lsb-release ]; then
       release=$(grep DISTRIB_DESCRIPTION /etc/lsb-release |awk -F'=' '{print $2}' |sed 's#"##g');
    elif [ -e /etc/debian_version ]; then

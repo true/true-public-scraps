@@ -761,7 +761,7 @@ main () {
    done
    echo -n '' > /tmp/aspersa
 
-   if [ -n "${ASPERSA_SKIP_MOUNTED}" ]; then
+   if [[ "${ASPERSA_SKIP}" != *MOUNT* ]]; then
        section "Mounted_Filesystems"
        df -hP | sort > /tmp/aspersa2
        mount | sort | join /tmp/aspersa2 - > /tmp/aspersa
@@ -874,7 +874,7 @@ main () {
    fi
    name_val Technology "${virt:-No virtualization detected}"
 
-   if [ 0 = 1 ]; then
+   if [[ "${ASPERSA_SKIP}" != *NETWORK* ]]; then
        # ########################################################################
        # Network stuff
        # ########################################################################
@@ -900,7 +900,9 @@ main () {
        if netstat -antp > /tmp/aspersa 2>/dev/null; then
           parse_netstat
        fi
+   fi
 
+   if [[ "${ASPERSA_SKIP}" != *PROCESS* ]]; then
        # ########################################################################
        # Processes, load, etc
        # ########################################################################

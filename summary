@@ -1,6 +1,6 @@
 #!/bin/bash
 # This program is part of Aspersa (http://code.google.com/p/aspersa/)
-# Slightly modified by True (http://github.com/true/true-public-scraps/raw/master/summary)
+# Modified by True (http://github.com/true/true-public-scraps/compare/708d964996b7955567b1...master)
 set +x
 
 # ########################################################################
@@ -286,6 +286,10 @@ parse_filesystems () {
       {
          printf spec, \$1, \$2, \$5, \$10, \$11, \$6
       }" /tmp/aspersa
+}
+
+parse_fdisk () {
+   cat /tmp/aspersa |while read line; do echo "  ${line}"; done
 }
 
 # ##############################################################################
@@ -748,7 +752,16 @@ main () {
    # Disks, RAID, Filesystems
    # ########################################################################
    # TODO: Add info about software RAID
-   if [ 0 = 1 ]; then
+   section "Disk_Partioning"
+   echo -n '' > /tmp/aspersa
+   for diskpath in $(ls -al /dev/disk/by-id |grep -v '\-part' |grep '/' |sed 's#\.\.\/##g' |awk '{print "/dev/"$NF}' | sort | uniq); do
+      echo "= ${diskpath} ===============================" >> /tmp/aspersa
+      fdisk -l ${diskpath} >> /tmp/aspersa 2>/dev/null
+      parse_fdisk
+   done
+   echo -n '' > /tmp/aspersa
+
+   if [ -n "${ASPERSA_SKIP_MOUNTED}" ]; then
        section "Mounted_Filesystems"
        df -hP | sort > /tmp/aspersa2
        mount | sort | join /tmp/aspersa2 - > /tmp/aspersa

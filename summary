@@ -344,7 +344,7 @@ parse_raid_controller_lspci () {
    elif grep -q "Hewlett-Packard Company Smart Array" /tmp/aspersa; then
       echo 'HP Smart Array'
    elif grep -q " RAID bus controller: " /tmp/aspersa; then
-      cat /tmp/aspersa |awk -F: '/RAID bus controller\:/ {print $3}'
+      cat /tmp/aspersa |awk -F: '/RAID bus controller\:/ {print $3" "$5" "$6}'
    fi
 }
 

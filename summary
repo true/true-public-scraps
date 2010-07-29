@@ -290,7 +290,7 @@ parse_filesystems () {
 }
 
 parse_fdisk () {
-   cat /tmp/aspersa |while read line; do echo "  ${line}"; done
+   cat /tmp/aspersa |while read line; do echo "    ${line}"; done
 }
 
 # ##############################################################################
@@ -758,8 +758,8 @@ main () {
    section "Disk_Partioning"
    echo -n '' > /tmp/aspersa
    for diskpath in $(ls -al /dev/disk/by-id |grep -v '\-part' |grep '/' |sed 's#\.\.\/##g' |awk '{print "/dev/"$NF}' | sort | uniq); do
-      echo "= ${diskpath} ===============================" >> /tmp/aspersa
-      fdisk -l ${diskpath} >> /tmp/aspersa 2>/dev/null
+      echo "  = ${diskpath} ==============================="
+      fdisk -l ${diskpath} > /tmp/aspersa 2>/dev/null
       parse_fdisk
    done
    echo -n '' > /tmp/aspersa

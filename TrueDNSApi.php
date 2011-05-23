@@ -19,12 +19,12 @@ class TrueDNSApi {
 	protected $_records = array();
 
 	public function  __construct($options) {
-        // Merge parent's possible options with own
-        $parent        = get_parent_class($this);
-        $parentVars    = get_class_vars($parent);
-        $parentOptions = $parentVars['_options'];
+		// Merge parent's possible options with own
+		$parent        = get_parent_class($this);
+		$parentVars    = get_class_vars($parent);
+		$parentOptions = $parentVars['_options'];
 		if (!empty($parentOptions)) {
-	        $this->_options = array_merge($parentOptions, $this->_options);
+			$this->_options = array_merge($parentOptions, $this->_options);
 		}
 
 		// Set real options
@@ -76,7 +76,7 @@ class TrueDNSApi {
 			'domain' => $domainName,
 			'record_id' => $record_id,
 		)+$data);
-		
+
 		if ($Req->errors) {
 			print_r($Req->errors);
 			return false;
@@ -150,12 +150,12 @@ class TrueDNSApi {
 		} else {
 			$record_id = (string)$Req->body->DNS->RECORDS_ADD->RECORD_ID;
 		}
-		
+
 		// Update Cache
 		if (!empty($this->_records[$domainName][$record_id])) {
 			$this->_records[$domainName][$record_id] = $data;
 		}
-		
+
 		return $record_id;
 	}
 }
@@ -189,7 +189,7 @@ class TrueDNSApi_Request {
 		$Auth = $Xml->addChild('AUTH');
 		$Auth->addChild('DEB_ID', $this->_options['username']);
 		$Auth->addChild('PASSWORD', $this->_options['password']);
-		
+
 		$Action = $Xml->addChild('ACTION');
 		$Action->addAttribute('scope', 'dns');
 		$Action->addAttribute('type', $method);
@@ -217,7 +217,7 @@ class TrueDNSApi_Request {
 		$data = array(
 			'xml' => $this->formXML($method, $params),
 			'hash' => $this->_options['hash'],
-		);	
+		);
 
 		$this->_curl = curl_init();
 		curl_setopt($this->_curl, CURLOPT_URL, $this->_options['service']);
@@ -257,4 +257,3 @@ class TrueDNSApi_Request {
 		}
 	}
 }
-?>

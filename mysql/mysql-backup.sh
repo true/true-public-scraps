@@ -3,7 +3,7 @@
 # True MySQL backup script for Bacula implementations
 #
 # Author   : L. Lakkas
-# Version  : 2.15
+# Version  : 2.16
 # Copyright: L. Lakkas @ TrueServer.nl B.V.
 #            In case you would like to make changes, let me know!
 #
@@ -20,6 +20,8 @@
 # 2.14 Created a primary and secondary configuration file for
 #      override purposes.
 # 2.15 Rewritten error handler to catch and fancyprint more errors
+# 2.16 Created exception in case the configuration file and custom
+#      configuration file are the same.
 #
 # Storable variables:
 # DB_USER	 The MySQL login user
@@ -102,7 +104,6 @@ fi
 # file location can be overridden by placing a configuration file
 # in the same directory as this script.
 
-READ_CONFIG="/etc/true/mysql-backup"
 # Get our current working directory
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 READ_CONFIG="${DIR}/mysql-backup.conf"
@@ -110,7 +111,7 @@ unset DIR
 
 # Check if the configuration file exists and has a size greater
 # then zero. If this is the case, strip out the vars and read it
-if [[ -s $READ_CONFIG ]]; then
+if [[ -s $READ_CONFIG ]] && [[ $READ_CONFIG != $CONFIG_FILE ]]; then
    # Local configuration found
    source <( sed -n 's/^CONFIG_*//p' $READ_CONFIG )
    CONFIG_TYPE=1

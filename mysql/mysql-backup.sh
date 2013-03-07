@@ -3,7 +3,7 @@
 # True MySQL backup script for Bacula implementations
 #
 # Author   : L. Lakkas
-# Version  : 2.16
+# Version  : 2.17
 # Copyright: L. Lakkas @ TrueServer.nl B.V.
 #            In case you would like to make changes, let me know!
 #
@@ -22,6 +22,8 @@
 # 2.15 Rewritten error handler to catch and fancyprint more errors
 # 2.16 Created exception in case the configuration file and custom
 #      configuration file are the same.
+# 2.17 Created backticks around the $DB variable to secure it for
+#      dashes in database names.
 #
 # Storable variables:
 # DB_USER	 The MySQL login user
@@ -291,7 +293,7 @@ for DB in $DB_LIST; do
 
       # Get the schema of database with the stored procedures.
       # This will be the first file in the database backup folder
-      OUTPUT=$((mysqldump $LOGIN_OPTS -R -d --single-transaction$SKIPSTRING $DB | gzip -c > $DB_BKP_DIR/000-DB_SCHEMA.sql.gz) 2>&1)
+      OUTPUT=$((mysqldump $LOGIN_OPTS -R -d --single-transaction$SKIPSTRING "$DB" | gzip -c > "$DB_BKP_DIR/000-DB_SCHEMA.sql.gz") 2>&1)
 
       if [ $? -ne 0 ]; then
          [[ $DEBUG -eq 1 ]] && printDebugStatus "FAILED" $DB
@@ -302,7 +304,8 @@ for DB in $DB_LIST; do
 
       index=0
       # Get the tables and its type. Store it in an array.
-      table_types=($(mysql $LOGIN_OPTS --skip-column-names -e "show table status from $DB" | awk '{print $1,$2}'))
+      # Using backticks around $DB for users who have dashes in there database / table names.
+      table_types=($(mysql $LOGIN_OPTS --skip-column-names -e "show table status from \`$DB\`" | awk '{print $1,$2}'))
       table_type_count=${#table_types[@]}
       # Loop through the tables and apply the mysqldump option according to the table type
       # The table specific SQL files will not contain any create info for the table schema.
@@ -338,7 +341,7 @@ for DB in $DB_LIST; do
             [[ $DEBUG -eq 1 ]] && printDebugStatus "SKIPPED" "  $table"
          else
             # Starting the backup of the table
-            OUTPUT=$((mysqldump $LOGIN_OPTS $DUMP_OPTS $table | gzip -c > $DB_BKP_DIR/$table.sql.gz) 2>&1)
+            OUTPUT=$((mysqldump $LOGIN_OPTS $DUMP_OPTS "$table" | gzip -c > "$DB_BKP_DIR/$table.sql.gz") 2>&1)
 
             if [ $? -ne 0 ]; then
                [[ $DEBUG -eq 1 ]] && printDebugStatus "FAILED" "  $table"

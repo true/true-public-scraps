@@ -3,7 +3,7 @@
 # True MySQL backup script for Bacula implementations
 #
 # Author   : L. Lakkas
-# Version  : 2.17
+# Version  : 3.00
 # Copyright: L. Lakkas @ TrueServer.nl B.V.
 #            In case you would like to make changes, let me know!
 #
@@ -24,8 +24,18 @@
 #      configuration file are the same.
 # 2.17 Created backticks around the $DB variable to secure it for
 #      dashes in database names.
+# 3.00 It seems some crazy people use spaces in there table names,
+#      lets escape them too. Placed the ignore-table's in a array
+#      so they are correctly passed to mysqldump. Did the same for
+#      databases. Made some minor bug fixes and also printed table
+#      type on debug. Also made the location of the binaries mysql
+#      and mysqldump configurable, introduced the DRY_RUN option,
+#      to see what will be done and fixed a issue where there is a
+#      database created with no tables. Added support for the new
+#      mysql.events table and moved the triggers from the table to
+#      the structure dump, to match the stored procedures etc.
 #
-# Storable variables:
+# Configurable variables:
 # DB_USER	 The MySQL login user
 #                Sample: DB_USER=root
 # DB_PASS	 The MySQL password for the specified user
@@ -40,16 +50,25 @@
 #                Sample: LOCAL_BKP_DIR=/backup/mysql
 # DEBUG          Boolean to enable or disable debug output
 #                Sample: DEBUG=0		(Default)
+# DRY_RUN        Run the backup, but don't export anything. This
+#                is for testing purposes and implicidly enables
+#                the debug option too. This should NOT be used
+#                for real backups!
 # DISK_MIN_FREE  The minimum amount of diskspace in Gigabytes
 #                Sample: DISK_MIN_FREE=3	(Default)
+# BIN_MYSQL      Specify the location and name of the `mysql`
+#                binary file
+# BIN_MYSQLDUMP  Specify the location and name of the `mysqldump`
+#                binary file
 #
 # Note: If you want to put any of these files in a configuration
 #       file, make sure you prefix them with CONFIG_.
 #       Sample: CONFIG_DEBUG=1
 #
-#       It is also possible to use command line variable imput in
+#       It is also possible to use command line variable input in
 #       the form of:
 #       DB_USER=root DB_PASS=letmein ./mysql-backup.sh
+#       The config file wil override a variable, if present!
 #
 # $Id$
 
@@ -97,7 +116,7 @@ function printError {
 }
 
 # Only root is allowed to run the script
-if [ ! "$(id -u -n)" = "root" ]; then
+if [ ! "$(id -u -n)" = root ]; then
    ERROR_REASONS+=("Only user 'root' can run this script!")
    printError
 fi
@@ -127,11 +146,29 @@ else
    fi
 fi
 
+# Check if multiple commandline parameters are given
+if [[ "$#" -gt 1 ]];then
+   ERROR_REASONS+=("Multiple commandline parameters given, only one allowed...")
+   printError
+fi
+
+# Check if we are in DRY RUN mode, and force DEBUG then
+[ "$#" -eq 1 ] && [[ "$1" == --dry-run ]] && DRY_RUN=1
+
+if [[ $DRY_RUN -gt 0 ]];then
+   echo "Running in DRY_RUN mode, no real backup is started..."
+   DEBUG=1
+fi
+
 # Override DEBUG parameter from command line
-[ "$#" -eq 1 ] && [[ "$1" == "--debug" ]] && DEBUG=1
+[ "$#" -eq 1 ] && [[ "$1" == --debug ]] && DEBUG=1
 # Print debug status
 if [[ $DEBUG -eq 1 ]];then
-   echo "Debug enabled..."
+   if [[ $DRY_RUN -gt 0 ]];then
+      echo "Forcing debug mode..."
+   else
+      echo "Debug enabled..."
+   fi
    case $CONFIG_TYPE in
       1) echo "Using custom configuration in script-directory ($READ_CONFIG)..." ;;
       2) echo "Using default configuration file..." ;;
@@ -141,6 +178,33 @@ fi
 unset READ_CONFIG
 unset CONFIG_TYPE
 
+if [[ -z $BIN_MYSQL ]];then
+   # No config set, lets try to find the binaries ourself
+   BIN_MYSQL=`which mysql`
+   [[ $DEBUG -eq 1 ]] && echo -e "Manually found 'mysql' in '$BIN_MYSQL'..."
+else
+   # A binary location is given, lets check if the file exists
+   if [[ -x $BIN_MYSQL && -f $BIN_MYSQL ]];then
+      [[ $DEBUG -eq 1 ]] && echo -e "Using configured binary 'mysql' in '$BIN_MYSQL'..."
+   else
+      ERROR_REASONS+=("The binary 'mysql' has not been found!")
+      printError
+   fi
+fi
+if [[ -z $BIN_MYSQLDUMP ]];then
+   # No config set, lets try to find the binaries ourself
+   BIN_MYSQLDUMP=`which mysqldump`
+   [[ $DEBUG -eq 1 ]] && echo -e "Manually found 'mysqldump' in '$BIN_MYSQLDUMP'..."
+else
+   # A binary location is given, lets check if the file exists
+   if [[ -x $BIN_MYSQLDUMP && -f $BIN_MYSQLDUMP ]];then
+      [[ $DEBUG -eq 1 ]] && echo -e "Using configured binary 'mysqldump' in '$BIN_MYSQLDUMP'..."
+   else
+     ERROR_REASONS+=("The binary 'mysqldump' has not been found!")
+     printError
+  fi
+fi
+
 # If no minimum free diskspace is given, default to 1 Gb
 DISK_MIN_FREE=${DISK_MIN_FREE:-1}
 [[ $DEBUG -eq 1 ]] && echo -e "Minimum free diskspace is set to $DISK_MIN_FREE Gb..."
@@ -149,7 +213,7 @@ DISK_MIN_FREE=${DISK_MIN_FREE:-1}
 [[ $DEBUG -eq 1 ]] && echo "Terminal type is set to '$TERM'..."
 
 # Fix pseudo terminals with fixed width
-if [ $TERM == "dumb" ];then
+if [ $TERM == dumb ];then
    width=60
 else
    # Get the terminal width and remove the width of the
@@ -159,7 +223,16 @@ fi
 
 # Fancy messages
 function printDebugStatus {
-   printf "%-${width}s [ $1 ]\n" "$2"
+   # Find the size of the ENGINE string
+
+  if [[ -z $3 ]]; then
+     printf "%-${width}s [ $1 ]\n" "$2"
+  else
+    engineSize=$((${#3}+3))
+     ((customWidth=$width-$engineSize))
+     printf "%-${customWidth}s ($3) [ $1 ]\n" "$2"
+  fi
+
 }
 
 # Allow command line variable imput in the form of:
@@ -224,7 +297,7 @@ else
    fi
 fi
 
-DB_LIST=$((echo "show databases;"|mysql $LOGIN_OPTS -N) 2>&1)
+DB_LIST=$((echo "show databases;"|$BIN_MYSQL $LOGIN_OPTS -N) 2>&1)
 
 # Check if we made correctly a connection
 if [[ $? -gt 0 ]];then
@@ -236,7 +309,7 @@ fi
 
 # Just output the skipped databases and tables
 if [[ $DEBUG -eq 1 ]];then
-   if [ ${#SKIP_DATABASES[@]} -gt 1 ];then
+   if [ ${#SKIP_DATABASES[@]} -gt 0 ];then
       echo -e "\nSkipping databases:"
       for i in "${SKIP_DATABASES[@]}"
       do
@@ -245,7 +318,7 @@ if [[ $DEBUG -eq 1 ]];then
    fi
 fi
 if [[ $DEBUG -eq 1 ]]; then
-   if [ ${#SKIP_TABLES[@]} -gt 1 ];then
+   if [ ${#SKIP_TABLES[@]} -gt 0 ];then
       echo -e "\nSkipping tables:"
       for i in "${SKIP_TABLES[@]}"
       do
@@ -257,12 +330,12 @@ fi
 [[ $DEBUG -eq 1 ]] && echo -e "\nStarting backup...\n"
 
 # Now create the backups
-for DB in $DB_LIST; do
+while read -r DB; do
    SKIP=0;
    for i in "${SKIP_DATABASES[@]}"
    do
       if [[ $i == $DB ]];then
-         [[ $DEBUG -eq 1 ]] && printDebugStatus "SKIPPED" $DB
+         [[ $DEBUG -eq 1 ]] && printDebugStatus "SKIPPED" "$DB"
          SKIP=1;
       fi
    done
@@ -273,52 +346,72 @@ for DB in $DB_LIST; do
 
       # Verify if we can make the directory
       if [[ ! -d $DB_BKP_DIR ]]; then
-         OUTPUT=$((mkdir -p $DB_BKP_DIR) 2>&1)
-         if [[ $? -eq 1 ]]; then
-            [[ $DEBUG -eq 1 ]] && echo "Can not make directory '$DB_BKP_DIR'..."
-            ERROR_REASONS+=("${OUTPUT}")
+         if [[ $DRY_RUN -eq 0 ]];then
+            OUTPUT=$((mkdir -p "$DB_BKP_DIR") 2>&1)
+            if [[ $? -eq 1 ]]; then
+               [[ $DEBUG -eq 1 ]] && echo "Can not make directory '$DB_BKP_DIR'..."
+               ERROR_REASONS+=("${OUTPUT}")
+            fi
          fi
       fi
 
       # Create the skip string for the structure dump
-      SKIPSTRING=""
+      SKIPSTRING=()
       for i in "${SKIP_TABLES[@]}"
       do
          # Check if we have a database that is identical to a skipped one.
          if [[ ${i%%.*} == $DB ]];then
             # Check if the table is identical to the one to be skipped
-            SKIPSTRING=$SKIPSTRING" --ignore-table=$i"
+            SKIPSTRING+=("--ignore-table=$i")
          fi
       done
 
-      # Get the schema of database with the stored procedures.
-      # This will be the first file in the database backup folder
-      OUTPUT=$((mysqldump $LOGIN_OPTS -R -d --single-transaction$SKIPSTRING "$DB" | gzip -c > "$DB_BKP_DIR/000-DB_SCHEMA.sql.gz") 2>&1)
-
-      if [ $? -ne 0 ]; then
-         [[ $DEBUG -eq 1 ]] && printDebugStatus "FAILED" $DB
-         ERROR_REASONS+=("${OUTPUT}")
-      else
-         [[ $DEBUG -eq 1 ]] && printDebugStatus "OK" $DB
-      fi
-
-      index=0
       # Get the tables and its type. Store it in an array.
       # Using backticks around $DB for users who have dashes in there database / table names.
-      table_types=($(mysql $LOGIN_OPTS --skip-column-names -e "show table status from \`$DB\`" | awk '{print $1,$2}'))
-      table_type_count=${#table_types[@]}
-      # Loop through the tables and apply the mysqldump option according to the table type
-      # The table specific SQL files will not contain any create info for the table schema.
-      # It will be available in SCHEMA file
-      # Credit: http://thejahil.blogspot.nl/2009/09/mysql-backup-script.html [Sunday, September 27, 2009]
-      while [ "$index" -lt "$table_type_count" ]; do
-         START=$(date +%s)
-         TYPE=${table_types[$index + 1]}
-         table=${table_types[$index]}
-         if [ "$TYPE" = "MyISAM" ]; then
-            DUMP_OPTS="$DB --no-create-info --tables$DUMP_OPTS_SKIP"
+
+      table_status="show table status from \`${DB}\`"
+      table_types=$(($BIN_MYSQL $LOGIN_OPTS --skip-column-names -Be "${table_status}" | awk -F "\t" '{print $1, $2}') 2>&1)
+
+      if [[ $? -eq 1 ]]; then
+         ERROR_REASONS+=("${table_types}")
+      fi
+
+      # Check if the database is empty
+      if [[ -z $table_types ]];then
+         [[ $DEBUG -eq 1 ]] && printDebugStatus "EMPTY" "$DB"
+      else
+         # Get the schema of database with the stored procedures.
+         # This will be the first file in the database backup folder
+         if [[ $DRY_RUN -eq 0 ]];then
+            OUTPUT=$(($BIN_MYSQLDUMP $LOGIN_OPTS --routines --no-data --triggers --single-transaction "${SKIPSTRING[@]}" "${DB}" | gzip -c > "$DB_BKP_DIR/000-DB_SCHEMA.sql.gz") 2>&1)
+
+            if [ $? -ne 0 ]; then
+               [[ $DEBUG -eq 1 ]] && printDebugStatus "FAILED" "$DB"
+               ERROR_REASONS+=("${OUTPUT}")
+            else
+               [[ $DEBUG -eq 1 ]] && printDebugStatus "OK" "$DB"
+            fi
          else
-            DUMP_OPTS="$DB --no-create-info --single-transaction --tables$DUMP_OPTS_SKIP"
+            printDebugStatus "DRY_RUN" "$DB"
+         fi
+      fi
+
+      while read -r row; do
+         table=${row% *}
+         type=${row##* }
+
+         DUMP_OPTS=("$DB")
+         DUMP_OPTS+=("--no-create-info")    # Do not write CREATE TABLES in the dump
+         DUMP_OPTS+=("--skip-triggers")     # Do not include triggers, we have them in the structure
+         DUMP_OPTS+=("--tables")
+
+         # Make sure events are stored correctly, so add the right mysqlbackup
+         # parameter when the mysql.event table is found.
+         [[ $DB == "mysql" && $table == "event" ]] && DUMP_OPTS+=("--events")
+
+         # MyISAM can't work with single-transactions, so exclude it
+         if [ ! "$type" = MyISAM ]; then
+            DUMP_OPTS+=("--single-transaction")
          fi
 
          # Lets check if its a table we need to skip
@@ -328,7 +421,7 @@ for DB in $DB_LIST; do
             # Check if we have a database that is identical to a skipped one.
             if [[ ${i%%.*} == $DB ]] && [[ ${SKIP} == 0 ]];then
                # Check if the table is identical to the one to be skipped
-               if [[ ${i#*.} == $table ]];then
+               if [[ ${i#*.} == "$table" ]];then
                   SKIP=1
                   break
                fi
@@ -341,22 +434,31 @@ for DB in $DB_LIST; do
             [[ $DEBUG -eq 1 ]] && printDebugStatus "SKIPPED" "  $table"
          else
             # Starting the backup of the table
-            OUTPUT=$((mysqldump $LOGIN_OPTS $DUMP_OPTS "$table" | gzip -c > "$DB_BKP_DIR/$table.sql.gz") 2>&1)
+            if [[ ! -z $table_types ]];then
+               if [[ $DRY_RUN -eq 0 ]];then
+                  OUTPUT=$(($BIN_MYSQLDUMP $LOGIN_OPTS "${DUMP_OPTS[@]}" "$table" | gzip -c > "$DB_BKP_DIR/$table.sql.gz") 2>&1)
 
-            if [ $? -ne 0 ]; then
-               [[ $DEBUG -eq 1 ]] && printDebugStatus "FAILED" "  $table"
-               ERROR_REASONS+=("${OUTPUT}")
-            else
-               [[ $DEBUG -eq 1 ]] && printDebugStatus "OK" "  $table"
+                  if [ $? -ne 0 ]; then
+                     [[ $DEBUG -eq 1 ]] && printDebugStatus "FAILED" "  $table" $type
+                     ERROR_REASONS+=("${OUTPUT}")
+                  else
+                     [[ $DEBUG -eq 1 ]] && printDebugStatus "OK" "  $table" $type
+                  fi
+               else
+                  printDebugStatus "DRY_RUN" "  $table" $type
+               fi
             fi
          fi
 
-         index=$(($index + 2))
-      done
+      done <<< "$table_types"
    fi
-done
+done <<< "$DB_LIST"
 
-[[ $DEBUG -eq 1 ]] && echo -e "\nBackup script finished. Result is stored in '$LOCAL_BKP_DIR'..."
+if [[ $DRY_RUN -eq 0 ]];then
+   [[ $DEBUG -eq 1 ]] && echo -e "\nBackup script finished. Data stored in '$LOCAL_BKP_DIR'..."
+else
+   [[ $DEBUG -eq 1 ]] && echo -e "\nBackup script finished, but NOTHING is stored in '$LOCAL_BKP_DIR'..."
+fi
 
 # If there are errors, print it. If not, bye...
 printError

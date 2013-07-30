@@ -1,9 +1,9 @@
 #!/bin/bash
 #
-# True MySQL backup script for Bacula implementations
+# True MySQL backup script for Bacula backup implementations
 #
 # Author   : L. Lakkas
-# Version  : 3.00
+# Version  : 3.10
 # Copyright: L. Lakkas @ TrueServer.nl B.V.
 #            In case you would like to make changes, let me know!
 #
@@ -34,14 +34,21 @@
 #      database created with no tables. Added support for the new
 #      mysql.events table and moved the triggers from the table to
 #      the structure dump, to match the stored procedures etc.
+# 3.10 Added parameter so the user can also specify the host of
+#      the MySQL database for remote backups. Also added a check
+#      that verifies if the user can export all databases. Present
+#      a warning if not. Exit code remains 0.
 #
 # Configurable variables:
-# DB_USER	 The MySQL login user
+# DB_HOST        The MySQL hostname of the server you would like
+#                to backup. Should be a FQDN, localhost or empty
+#                Sample: DB_HOST=db01.example.com
+# DB_USER        The MySQL login user
 #                Sample: DB_USER=root
-# DB_PASS	 The MySQL password for the specified user
+# DB_PASS        The MySQL password for the specified user
 #                Sample: DB_PASS=letmein
 # SKIP_DATABASES Array of databases to skip
-# 		 Sample: SKIP_DATABASES=(information_schema)
+#                Sample: SKIP_DATABASES=(information_schema)
 # SKIP_TABLES    Array of tables to skip, prefixed with database
 #                Sample: SKIP_TABLES=(mysql.host)
 # LOCAL_BKP_DIR  The directory to put the backup in. It is not
@@ -90,6 +97,13 @@ set -o pipefail
 
 # Prepare error array
 ERROR_REASONS=()
+
+function printWarning {
+      echo
+      echo "###################################################################"
+      echo "#                       WARNINGS DETECTED                         #"
+      echo "###################################################################"
+}
 
 function printError {
    if [ ${#ERROR_REASONS[@]} -ne 0 ]; then
@@ -297,6 +311,12 @@ else
    fi
 fi
 
+# Check if we need to backup remotely
+if [[ ! -z $DB_HOST ]] && [[ $DB_HOST != "localhost" ]];then
+   [[ $DEBUG -eq 1 ]] && echo "Using remote database '$DB_HOST' to gather backup..."
+   LOGIN_OPTS+=" --host ${DB_HOST}"
+fi
+
 DB_LIST=$((echo "show databases;"|$BIN_MYSQL $LOGIN_OPTS -N) 2>&1)
 
 # Check if we made correctly a connection
@@ -306,6 +326,37 @@ if [[ $? -gt 0 ]];then
    printError
    exit 1
 fi
+
+# Check if we have enough MySQL rights to export everything
+[[ $DEBUG -eq 1 ]] && echo -e "Validating rights..."
+RIGHTS=$(($BIN_MYSQL $LOGIN_OPTS --skip-column-names -Be "show grants for current_user;" | grep -o -P '(?<=GRANT ).*(?= ON)') 2>&1)
+
+MISSING_RIGHTS="Missing rights"
+if [[ -z $DB_USER ]]; then
+   MISSING_RIGHTS+="!"
+else
+   MISSING_RIGHTS+=" for user '$DB_USER'!"
+fi
+
+if [[ ! "$RIGHTS" =~ "SELECT" ]]; then
+   MISSING_RIGHTS+="\n SELECT      - Probably NOT exporting all databases and tables!"
+   MISSING=1
+fi
+
+if [[ ! "$RIGHTS" =~ "LOCK TABLES" ]]; then
+   [[ $DEBUG -eq 1 ]] && MISSING_RIGHTS+="\n LOCK TABLES - Probably problems with exporting some tables!"
+   MISSING=1
+fi
+
+if [[ ! "$RIGHTS" =~ "EVENT" ]]; then
+   [[ $DEBUG -eq 1 ]] && MISSING_RIGHTS+="\n EVENT       - Probably problems with exporting some MySQL tables!"
+   MISSING=1
+fi
+
+[[ ! -z $MISSING ]] && printWarning && echo -e "${MISSING_RIGHTS}";
+unset RIGHTS
+unset MISSING_RIGHTS
+unset MISSING
 
 # Just output the skipped databases and tables
 if [[ $DEBUG -eq 1 ]];then

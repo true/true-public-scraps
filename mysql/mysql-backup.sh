@@ -3,7 +3,7 @@
 # True MySQL backup script for Bacula backup implementations
 #
 # Author   : L. Lakkas
-# Version  : 3.10
+# Version  : 3.20
 # Copyright: L. Lakkas @ TrueServer.nl B.V.
 #            In case you would like to make changes, let me know!
 #
@@ -38,6 +38,9 @@
 #      the MySQL database for remote backups. Also added a check
 #      that verifies if the user can export all databases. Present
 #      a warning if not. Exit code remains 0.
+# 3.20 Allow ALL privileges too while verifying the rights of the
+#      user. Also allow whitespace before configurable parameters
+#      and check the configuration file rights before loading.
 #
 # Configurable variables:
 # DB_HOST        The MySQL hostname of the server you would like
@@ -95,14 +98,21 @@ CONFIG_FILE="/etc/true/mysql-backup/mysql-backup.conf"
 # gzip.
 set -o pipefail
 
-# Prepare error array
+# Prepare error and warning array
 ERROR_REASONS=()
+WARNING_REASONS=()
 
 function printWarning {
       echo
       echo "###################################################################"
       echo "#                       WARNINGS DETECTED                         #"
       echo "###################################################################"
+
+      for WARNINGS in "${WARNING_REASONS[@]}"
+      do
+         ((count++))
+         echo -e "$count) ${WARNINGS}"
+      done
 }
 
 function printError {
@@ -125,6 +135,10 @@ function printError {
       echo -e "\nExiting with errors..."
       exit 1
    else
+      if [ ${#WARNING_REASONS[@]} -ne 0 ]; then
+         printWarning
+         echo -e "\nExiting with warnings..."
+      fi
       exit 0
    fi
 }
@@ -141,23 +155,42 @@ fi
 
 # Get our current working directory
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-READ_CONFIG="${DIR}/mysql-backup.conf"
+LOCAL_CONFIG="${DIR}/mysql-backup.conf"
 unset DIR
 
 # Check if the configuration file exists and has a size greater
 # then zero. If this is the case, strip out the vars and read it
-if [[ -s $READ_CONFIG ]] && [[ $READ_CONFIG != $CONFIG_FILE ]]; then
+if [[ -s $LOCAL_CONFIG ]] && [[ $LOCAL_CONFIG != $CONFIG_FILE ]]; then
    # Local configuration found
-   source <( sed -n 's/^CONFIG_*//p' $READ_CONFIG )
    CONFIG_TYPE=1
+   FILENAME=$LOCAL_CONFIG
 else
    if [[ -s $CONFIG_FILE ]];then
-      source <( sed -n 's/^CONFIG_*//p' $CONFIG_FILE )
+      FILENAME=$CONFIG_FILE
       CONFIG_TYPE=2
    else
       echo "No configuration file found..."
       CONFIG_TYPE=3
    fi
+fi
+if [[ $CONFIG_TYPE == 1 ]] || [[ $CONFIG_TYPE == 2 ]]; then
+   STATS=$(stat -c %A "${FILENAME}")
+
+   if [[ ! $STATS == "-rw-------" ]]; then
+      PERMISSION_TXT=""
+      if [[ $STATS == "-rw-r--r--" ]]; then
+         PERMISSION_TXT+="Please remove the READ rights from the 'group' and 'others' of the configuration file"
+      else
+         PERMISSION_TXT+="The permissions are incorrect on the configuration file!"
+      fi
+      PERMISSION_TXT+="\n     Use 'chmod 600 ${FILENAME}'"
+      WARNING_REASONS+=("${PERMISSION_TXT}")
+      unset PERMISSION_TXT
+   fi
+   unset STATS
+
+   source <( sed -n 's/^\s*CONFIG_*//p' $FILENAME )
+   unset FILENAME
 fi
 
 # Check if multiple commandline parameters are given
@@ -184,12 +217,12 @@ if [[ $DEBUG -eq 1 ]];then
       echo "Debug enabled..."
    fi
    case $CONFIG_TYPE in
-      1) echo "Using custom configuration in script-directory ($READ_CONFIG)..." ;;
+      1) echo "Using custom configuration in script-directory ($LOCAL_CONFIG)..." ;;
       2) echo "Using default configuration file..." ;;
-      3) echo "Config file '$CONFIG_FILE' or '$READ_CONFIG' was not found..." ;;
+      3) echo "Config file '$CONFIG_FILE' or '$LOCAL_CONFIG' was not found..." ;;
    esac
 fi
-unset READ_CONFIG
+unset LOCAL_CONFIG
 unset CONFIG_TYPE
 
 if [[ -z $BIN_MYSQL ]];then
@@ -331,32 +364,35 @@ fi
 [[ $DEBUG -eq 1 ]] && echo -e "Validating rights..."
 RIGHTS=$(($BIN_MYSQL $LOGIN_OPTS --skip-column-names -Be "show grants for current_user;" | grep -o -P '(?<=GRANT ).*(?= ON)') 2>&1)
 
-MISSING_RIGHTS="Missing rights"
+MISSING_RIGHTS="Missing grant (rights)"
 if [[ -z $DB_USER ]]; then
    MISSING_RIGHTS+="!"
 else
    MISSING_RIGHTS+=" for user '$DB_USER'!"
 fi
 
-if [[ ! "$RIGHTS" =~ "SELECT" ]]; then
-   MISSING_RIGHTS+="\n SELECT      - Probably NOT exporting all databases and tables!"
-   MISSING=1
-fi
+if [[ ! "$RIGHTS" =~ "ALL PRIVILEGES" ]]; then
+   if [[ ! "$RIGHTS" =~ "SELECT" ]]; then
+      MISSING_RIGHTS+="\n     SELECT      - Probably NOT exporting all databases and tables!"
+      MISSING=1
+   fi
 
-if [[ ! "$RIGHTS" =~ "LOCK TABLES" ]]; then
-   [[ $DEBUG -eq 1 ]] && MISSING_RIGHTS+="\n LOCK TABLES - Probably problems with exporting some tables!"
-   MISSING=1
-fi
+   if [[ ! "$RIGHTS" =~ "LOCK TABLES" ]]; then
+      [[ $DEBUG -eq 1 ]] && MISSING_RIGHTS+="\n     LOCK TABLES - Probably problems with exporting some tables!"
+      MISSING=1
+   fi
 
-if [[ ! "$RIGHTS" =~ "EVENT" ]]; then
-   [[ $DEBUG -eq 1 ]] && MISSING_RIGHTS+="\n EVENT       - Probably problems with exporting some MySQL tables!"
-   MISSING=1
-fi
+   if [[ ! "$RIGHTS" =~ "EVENT" ]]; then
+      [[ $DEBUG -eq 1 ]] && MISSING_RIGHTS+="\n     EVENT       - Probably problems with exporting some MySQL tables!"
+      MISSING=1
+   fi
 
-[[ ! -z $MISSING ]] && printWarning && echo -e "${MISSING_RIGHTS}";
+   [[ ! -z $MISSING ]] && WARNING_REASONS+=("${MISSING_RIGHTS}");
+
+   unset MISSING
+fi
 unset RIGHTS
 unset MISSING_RIGHTS
-unset MISSING
 
 # Just output the skipped databases and tables
 if [[ $DEBUG -eq 1 ]];then

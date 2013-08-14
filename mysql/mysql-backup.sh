@@ -3,7 +3,7 @@
 # True MySQL backup script for Bacula backup implementations
 #
 # Author   : L. Lakkas
-# Version  : 3.20
+# Version  : 3.21
 # Copyright: L. Lakkas @ TrueServer.nl B.V.
 #            In case you would like to make changes, let me know!
 #
@@ -41,6 +41,8 @@
 # 3.20 Allow ALL privileges too while verifying the rights of the
 #      user. Also allow whitespace before configurable parameters
 #      and check the configuration file rights before loading.
+# 3.21 Minor bugfix on the validation of the MySQL and MySQL dump
+#      variables.
 #
 # Configurable variables:
 # DB_HOST        The MySQL hostname of the server you would like
@@ -226,9 +228,15 @@ unset LOCAL_CONFIG
 unset CONFIG_TYPE
 
 if [[ -z $BIN_MYSQL ]];then
-   # No config set, lets try to find the binaries ourself
+   # No config set, lets try to find the binaries ourselves
    BIN_MYSQL=`which mysql`
-   [[ $DEBUG -eq 1 ]] && echo -e "Manually found 'mysql' in '$BIN_MYSQL'..."
+   # Verify if the found binary is okey
+   if [[ -x $BIN_MYSQL && -f $BIN_MYSQL ]];then
+      [[ $DEBUG -eq 1 ]] && echo -e "Manually found 'mysql' in '$BIN_MYSQL'..."
+   else
+      ERROR_REASONS+=("The binary 'mysql' is invalid or has not been found!")
+      printError
+   fi
 else
    # A binary location is given, lets check if the file exists
    if [[ -x $BIN_MYSQL && -f $BIN_MYSQL ]];then
@@ -239,9 +247,15 @@ else
    fi
 fi
 if [[ -z $BIN_MYSQLDUMP ]];then
-   # No config set, lets try to find the binaries ourself
+   # No config set, lets try to find the binaries ourselves
    BIN_MYSQLDUMP=`which mysqldump`
-   [[ $DEBUG -eq 1 ]] && echo -e "Manually found 'mysqldump' in '$BIN_MYSQLDUMP'..."
+   # Verify if the found binary is okey
+   if [[ -x $BIN_MYSQLDUMP && -f $BIN_MYSQLDUMP ]];then
+      [[ $DEBUG -eq 1 ]] && echo -e "Manually found 'mysqldump' in '$BIN_MYSQLDUMP'..."
+   else
+      ERROR_REASONS+=("The binary 'mysqldump' is invalid or has not been found!")
+      printError
+   fi
 else
    # A binary location is given, lets check if the file exists
    if [[ -x $BIN_MYSQLDUMP && -f $BIN_MYSQLDUMP ]];then

@@ -17,3 +17,9 @@ Please read the Wiki article about [Tips and Tricks](https://wiki.true.nl/Tips_a
 ✔ **mysql-report.sh**
 > This will generate a fancy report of MySQL usage.
 > Source: http://hackmysql.com/mysqlreport
+
+✔ **mysql-max-connections-tracker.sh**
+> This script will warn when the MySQL `max_connections` is almost reached. When its triggered, it will store the data in a file for reviewing.
+> Use the following cron to enable this script:
+
+`*/1 * * * * /root/bin/mysql-max-connections-tracker.sh > /dev/null 2>&1`

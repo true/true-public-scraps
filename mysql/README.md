@@ -23,3 +23,6 @@ Please read the Wiki article about [Tips and Tricks](https://wiki.true.nl/Tips_a
 > Use the following cron to enable this script:
 
 `*/1 * * * * /root/bin/mysql-max-connections-tracker.sh > /dev/null 2>&1`
+
+✔ **mysql-mmm-agent-garp.patch✔**
+> A patch to fix the version comparison of Perl ARP module in the MySQL MMM agent.

@@ -346,11 +346,11 @@ if [ ${#DB_USER} -gt 0 ]; then
 else
    # Check if we have a Debian login method
    if [ -f "/etc/mysql/debian.cnf" ]; then
-      LOGIN_OPTS="--defaults-file=/etc/mysql/debian.cnf"
+      LOGIN_OPTS="--defaults-extra-file=/etc/mysql/debian.cnf"
    else
       # Check if we have a DirectAdmin login method
       if [ -f "/usr/local/directadmin/conf/my.cnf" ];then
-         LOGIN_OPTS="--defaults-file=/usr/local/directadmin/conf/my.cnf"
+         LOGIN_OPTS="--defaults-extra-file=/usr/local/directadmin/conf/my.cnf"
       else
          ERROR_REASONS+=("No MySQL login method found and no credentials given, aborting...")
          printError

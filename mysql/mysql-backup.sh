@@ -3,8 +3,8 @@
 # True MySQL backup script for Bacula backup implementations
 #
 # Author   : L. Lakkas
-# Version  : 3.21
-# Copyright: L. Lakkas @ TrueServer.nl B.V.
+# Version  : 3.22
+# Copyright: L. Lakkas @ True B.V.
 #            In case you would like to make changes, let me know!
 #
 # Changelog:
@@ -43,7 +43,11 @@
 #      and check the configuration file rights before loading.
 # 3.21 Minor bugfix on the validation of the MySQL and MySQL dump
 #      variables.
-#
+# 3.22 Changed MySQL defaults file to extra file to include the
+#      default & custom server configuration. Added an option to
+#      remove the old (previous) backup, an option to change the
+#      umask and did some extra binary checking.
+
 # Configurable variables:
 # DB_HOST        The MySQL hostname of the server you would like
 #                to backup. Should be a FQDN, localhost or empty
@@ -72,6 +76,9 @@
 #                binary file
 # BIN_MYSQLDUMP  Specify the location and name of the `mysqldump`
 #                binary file
+# RM_OLDBACKUP   Specify if you would like to remove the old
+#                backup or not.
+# CUSTOM_UMASK   Specify the umask you would like to use
 #
 # Note: If you want to put any of these files in a configuration
 #       file, make sure you prefix them with CONFIG_.
@@ -227,6 +234,16 @@ fi
 unset LOCAL_CONFIG
 unset CONFIG_TYPE
 
+# Finding our binaries
+# First search for crucial binaries:
+BIN_MKDIR=`which mkdir`
+BIN_RM=`which rm`
+BIN_GZIP=`which gzip`
+if [[ -z $BIN_MKDIR || -z $BIN_RM || -z $BIN_GZIP ]];then
+   ERROR_REASONS+=("The binary 'mkdir', 'rm' or 'gzip' could not be found! Maybe command 'which' is missing, or a currupt system?")
+fi
+
+# Next, find MySQL binaries
 if [[ -z $BIN_MYSQL ]];then
    # No config set, lets try to find the binaries ourselves
    BIN_MYSQL=`which mysql`
@@ -266,9 +283,9 @@ else
   fi
 fi
 
-# If no minimum free diskspace is given, default to 1 Gb
+# If no minimum free diskspace is given, defaults to 1 GB
 DISK_MIN_FREE=${DISK_MIN_FREE:-1}
-[[ $DEBUG -eq 1 ]] && echo -e "Minimum free diskspace is set to $DISK_MIN_FREE Gb..."
+[[ $DEBUG -eq 1 ]] && echo -e "Minimum free diskspace is set to $DISK_MIN_FREE GB..."
 
 # Get terminal width
 [[ $DEBUG -eq 1 ]] && echo "Terminal type is set to '$TERM'..."
@@ -332,12 +349,48 @@ else
 fi
 
 # Check if there is at least $DISK_MIN_FREE free space on the
-# server/partition. We calculate in Gb as MySQL dumps can grow
-# large. Besides, having at least 1 Gb sounds like a pre!
+# server/partition. We calculate in GB as MySQL dumps can grow
+# large. Besides, having at least 1 GB sounds like a pre!
 if [[ $(($(stat -f --format="%a*%S" .)/1024/1024/1024)) -lt $DISK_MIN_FREE ]];then
-   [[ $DEBUG -eq 1 ]] && echo "At least $DISK_MIN_FREE Gb is needed. Currently there is only $(($(stat -f --format="%a*%S" .)/1024/1024/1024)) Gb free!"
+   [[ $DEBUG -eq 1 ]] && echo "At least $DISK_MIN_FREE GB is needed. Currently there is only $(($(stat -f --format="%a*%S" .)/1024/1024/1024)) GB free!"
    ERROR_REASONS+=("Insufficient disk space available...")
    printError
+fi
+
+# Check if we need to remove a previous backup or not.
+# Note that it is best practice to keep the old backup around so you
+# can see how your backup is growing within trend-watchingtools. Also
+# the parameter $DISK_MIN_FREE will make more sence while it checks
+# increments instread of a wild guess :)
+if [[ $RM_OLDBACKUP -gt 0 ]];then
+   [[ $DEBUG -eq 1 ]] && echo -e "Removing old (previous) backup..."
+   if [[ -d $LOCAL_BKP_DIR ]];then
+      if [[ $DRY_RUN -eq 0 ]];then
+         # Validation of the backup directory has already been done at this point.
+         # Removing everything from the backup directory!
+         $BIN_RM -rf -- ${LOCAL_BKP_DIR}/*
+      else
+         [[ $DEBUG -eq 1 ]] && echo "Would have executed '$BIN_RM -rf -- $LOCAL_BKP_DIR/*' if dry-run parameter was missing..."
+      fi
+   else
+      [[ $DEBUG -eq 1 ]] && echo "Old backup has not been found. Probably the previous backup went wrong or this is a first run?"
+   fi
+fi
+
+# Show the current umask. Some backup tools change the default
+[[ $DEBUG -eq 1 ]] && echo "The current 'umask' is "`umask`"..."
+
+# Check if we have a custom umask in the configuration file
+if [[ ! -z $CUSTOM_UMASK ]];then
+   if [[ $CUSTOM_UMASK =~ ^-?[0-9]+$ ]];then
+      [[ $DEBUG -eq 1 ]] && echo -e "The 'umask' will be changed to ${CUSTOM_UMASK}..."
+      if [[ $DRY_RUN -eq 0 ]];then
+         # Change the umask only when a real backup is running
+         umask $CUSTOM_UMASK
+      fi
+   else
+      ERROR_REASONS+=("The 'umask' in the configuration file is incorrect, used default one...")
+   fi
 fi
 
 # Discover MySQL login type / method
@@ -448,7 +501,7 @@ while read -r DB; do
       # Verify if we can make the directory
       if [[ ! -d $DB_BKP_DIR ]]; then
          if [[ $DRY_RUN -eq 0 ]];then
-            OUTPUT=$((mkdir -p "$DB_BKP_DIR") 2>&1)
+            OUTPUT=$(($BIN_MKDIR -p "$DB_BKP_DIR") 2>&1)
             if [[ $? -eq 1 ]]; then
                [[ $DEBUG -eq 1 ]] && echo "Can not make directory '$DB_BKP_DIR'..."
                ERROR_REASONS+=("${OUTPUT}")

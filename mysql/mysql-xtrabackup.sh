@@ -27,7 +27,6 @@ if [ ! -e "$PID" ]; then
   if [ $s -ne 0 ]; then
     STATUS="FAIL";
     SUBJECT="Xtrabackup step failed."
-    MAILTO="sla@true.nl"
     /usr/bin/mailx -r $MAILFROM -s "[$STATUS] $SUBJECT" $MAILTO < /dev/null
   fi
 
@@ -41,7 +40,6 @@ if [ ! -e "$PID" ]; then
   if [ $s -ne 0 ]; then
     STATUS="FAIL";
     SUBJECT="Xtrabackup APPLY step failed."
-    MAILTO="sla@true.nl"
     /usr/bin/mailx -r $MAILFROM -s "[$STATUS] $SUBJECT" $MAILTO < /dev/null
   fi
 
@@ -54,7 +52,6 @@ if [ ! -e "$PID" ]; then
   if [ $s -ne 0 ]; then
     STATUS="FAIL";
     SUBJECT="Tar step failed."
-    MAILTO="sla@true.nl"
     /usr/bin/mailx -r $MAILFROM -s "[$STATUS] $SUBJECT" $MAILTO < /dev/null
   fi
 
@@ -67,7 +64,6 @@ if [ ! -e "$PID" ]; then
   if [ $s -ne 0 ]; then
     STATUS="FAIL";
     SUBJECT="Pigz step failed."
-    MAILTO="sla@true.nl"
     /usr/bin/mailx -r $MAILFROM -s "[$STATUS] $SUBJECT" $MAILTO < /dev/null
   fi
 

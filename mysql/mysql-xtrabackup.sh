@@ -15,6 +15,9 @@ MAILTO="root"
 MAILFROM="$(hostname)@$(hostname -d)"
 BACKUPPATH="/backup/xtrabackup"
 SUBJECT="[MySQL] Backup is still running"
+# Retention periods (in minutes)
+KEEP_UNCOMPRESSED="180"
+KEEP_COMPRESSED="2880"
 
 if [ ! -e "$PID" ]; then
   echo "Backup is still running, starting date: $(date)" > "$PID"
@@ -68,14 +71,14 @@ if [ ! -e "$PID" ]; then
   fi
 
   ####
-  # Remove uncompressed backups older than 3 hours...
+  # Remove uncompressed backups older than xx minutes...
   ####
-  find "$BACKUPPATH" -maxdepth 1 ! -path "$BACKUPPATH" -type d -mmin +180 -exec rm -Rf {} \;
+  find "$BACKUPPATH" -maxdepth 1 ! -path "$BACKUPPATH" -type d -mmin +$KEEP_UNCOMPRESSED -exec rm -Rf {} \;
 
   ####
-  # Remove compressed backups older than 2 hours...
+  # Remove compressed backups older than xx minutes...
   ####
-  find "$BACKUPPATH" -type f -mmin +2880 -delete
+  find "$BACKUPPATH" -type f -mmin +$KEEP_COMPRESSED -delete
 
   ####
   # Remove the lock file so new backup will start

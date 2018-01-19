@@ -3,12 +3,13 @@
 # True MySQL backup script for Xtrabackup implementations
 #
 # Author   : Rene Bakkum
-# Version  : 1.00
+# Version  : 1.01
 # Copyright: True B.V.
 #            In case you would like to make changes, let me know!
 #
 # Changelog:
 # 1.00 Initial release
+# 1.01 Added external config
 
 PID="/backup/xtraback-running.lock"
 MAILTO="root"
@@ -18,6 +19,21 @@ SUBJECT="[MySQL] Backup is still running"
 # Retention periods (in minutes)
 KEEP_UNCOMPRESSED="180"
 KEEP_COMPRESSED="2880"
+
+CFG="${0/.sh/.cfg}"
+
+if [ ! -e "$CFG" ]; then
+  cat << EOF > "$CFG"
+MAILTO="$MAILTO"
+BACKUPPATH="$BACKUPPATH"
+SUBJECT="$SUBJECT"
+# Retention periods (in minutes)
+KEEP_UNCOMPRESSED="$KEEP_UNCOMPRESSED"
+KEEP_COMPRESSED="$KEEP_COMPRESSED"
+EOF
+else
+  source "$CFG"
+fi
 
 if [ ! -e "$PID" ]; then
   echo "Backup is still running, starting date: $(date)" > "$PID"

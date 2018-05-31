@@ -590,7 +590,7 @@ while read -r DB; do
             # Starting the backup of the table
             if [[ ! -z $table_types ]];then
                if [[ $DRY_RUN -eq 0 ]];then
-                  OUTPUT=$(($BIN_MYSQLDUMP $LOGIN_OPTS "${DUMP_OPTS[@]}" "$table" | gzip -c > "$DB_BKP_DIR/$table.sql.gz") 2>&1)
+                  OUTPUT=$(($BIN_MYSQLDUMP $LOGIN_OPTS "${DUMP_OPTS[@]}" "${CUSTOM_OPTS[@]}" "$table" | gzip -c > "$DB_BKP_DIR/$table.sql.gz") 2>&1)
 
                   if [ $? -ne 0 ]; then
                      [[ $DEBUG -eq 1 ]] && printDebugStatus "FAILED" "  $table" $type

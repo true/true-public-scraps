@@ -60,6 +60,9 @@
 #                Sample: SKIP_DATABASES=(information_schema)
 # SKIP_TABLES    Array of tables to skip, prefixed with database
 #                Sample: SKIP_TABLES=(mysql.host)
+# SKIP_TABLES_WILDCARD   Array of wildcard table definitions to skip, without database prefix
+#                BE AWARE!! Matched tables will be skipped for all databases!!
+#                Sample: SKIP_TABLES_WILDCARD=('tmp_%')
 # LOCAL_BKP_DIR  The directory to put the backup in. It is not
 #                advised to use the /tmp or /var/tmp directory
 #                for security reasons.
@@ -477,8 +480,17 @@ if [[ $DEBUG -eq 1 ]]; then
       for i in "${SKIP_TABLES[@]}"
       do
          echo "  $i"
-         done
-      fi
+      done
+   fi
+fi
+if [[ $DEBUG -eq 1 ]]; then
+   if [ ${#SKIP_TABLES_WILDCARD[@]} -gt 0 ];then
+      echo -e "\nSkipping wildcard tables (For ALL databases):"
+      for i in "${SKIP_TABLES_WILDCARD[@]}"
+      do
+         echo "  $i"
+      done
+   fi
 fi
 
 [[ $DEBUG -eq 1 ]] && echo -e "\nStarting backup...\n"
@@ -511,12 +523,25 @@ while read -r DB; do
 
       # Create the skip string for the structure dump
       SKIPSTRING=()
+      WILDCARD_TABLES=()
       for i in "${SKIP_TABLES[@]}"
       do
          # Check if we have a database that is identical to a skipped one.
          if [[ ${i%%.*} == $DB ]];then
             # Check if the table is identical to the one to be skipped
             SKIPSTRING+=("--ignore-table=$i")
+         fi
+      done
+      for i in "${SKIP_TABLES_WILDCARD[@]}"
+      do
+         tables=$(($BIN_MYSQL $LOGIN_OPTS -BNe "SELECT table_name FROM information_schema.tables WHERE table_schema = '${DB}' and table_name like '${i}';") 2>&1)
+         if [[ $? -eq 1 ]]; then
+            ERROR_REASONS+=("${wildcard_tables}")
+         else
+            for table in $tables; do
+               SKIPSTRING+=("--ignore-table=$table")
+               WILDCARD_TABLES+=( $table )
+            done
          fi
       done
 
@@ -554,6 +579,7 @@ while read -r DB; do
          table=${row% *}
          type=${row##* }
 
+         SKIP=0
          DUMP_OPTS=("$DB")
          DUMP_OPTS+=("--no-create-info")    # Do not write CREATE TABLES in the dump
          DUMP_OPTS+=("--skip-triggers")     # Do not include triggers, we have them in the structure
@@ -579,10 +605,18 @@ while read -r DB; do
                   SKIP=1
                   break
                fi
-            else
-               SKIP=0
             fi
          done
+
+         if [[ $SKIP -eq 0 ]]; then
+            for i in "${WILDCARD_TABLES[@]}"
+            do
+               if [[ "$i" == "$table" ]];then
+                  SKIP=1
+                  break
+               fi
+            done
+	 fi
 
          if [[ $SKIP -eq 1 ]]; then
             [[ $DEBUG -eq 1 ]] && printDebugStatus "SKIPPED" "  $table"
